@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-test:
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore Transiever.ThunderbirdResiever.slnx
+      - run: dotnet build Transiever.ThunderbirdResiever.slnx --configuration Release --no-restore --warnaserror
+      - run: dotnet test Transiever.ThunderbirdResiever.slnx --configuration Release --no-build
+
+  native-aot:
+    name: Native AOT smoke (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            executable: tbrx.exe
+          - os: ubuntu-latest
+            rid: linux-x64
+            executable: tbrx
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Install Linux Native AOT prerequisites
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes clang zlib1g-dev
+      - name: Publish
+        run: >-
+          dotnet publish src/Transiever.ThunderbirdResiever.Cli/Transiever.ThunderbirdResiever.Cli.csproj
+          --configuration Release --runtime ${{ matrix.rid }} --self-contained true
+          -p:PublishAot=true -p:PublishTrimmed=true -p:PublishSingleFile=true
+          -p:TreatWarningsAsErrors=true --output artifacts/publish/${{ matrix.rid }}
+      - name: Smoke test help and synthetic export
+        run: |
+          executable="./artifacts/publish/${{ matrix.rid }}/${{ matrix.executable }}"
+          "$executable" --help
+          smoke="$(mktemp -d)"
+          bash .github/scripts/create-smoke-profile.sh "$smoke"
+          "$executable" export --profile "$smoke/profile" --rules "$smoke/rules.json"
+          grep -q 'Synthetic smoke rule' "$smoke/rules.json"

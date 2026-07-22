@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Transiever.ThunderbirdResiever.Cli.UnitTest/Transiever.ThunderbirdResiever.Cli.UnitTest.csproj" />
+    <Project Path="src/Transiever.ThunderbirdResiever.Cli/Transiever.ThunderbirdResiever.Cli.csproj" />
+    <Project Path="src/Transiever.ThunderbirdResiever.UnitTest/Transiever.ThunderbirdResiever.UnitTest.csproj" />
+    <Project Path="src/Transiever.ThunderbirdResiever/Transiever.ThunderbirdResiever.csproj" />
+  </Folder>
+</Solution>

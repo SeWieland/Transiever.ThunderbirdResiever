@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <Title>Transiever.ThunderbirdResiever adapter</Title>
+    <Description>Read-only Thunderbird rule source adapter for Transiever.SieveRuler.</Description>
+    <SieveRulerProject>..\..\..\SieveRuler\src\Transiever.SieveRuler\Transiever.SieveRuler.csproj</SieveRulerProject>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(SieveRulerProject)')">
+    <ProjectReference Include="$(SieveRulerProject)" />
+  </ItemGroup>
+  <ItemGroup Condition="!Exists('$(SieveRulerProject)')">
+    <PackageReference Include="Transiever.SieveRuler" Version="1.1.0" />
+  </ItemGroup>
+</Project>

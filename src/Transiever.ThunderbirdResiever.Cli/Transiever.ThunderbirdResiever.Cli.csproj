@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>tbrx</AssemblyName>
+    <RootNamespace>Transiever.ThunderbirdResiever.Cli</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <Title>tbrx</Title>
+    <Description>Command-line interface for Transiever.ThunderbirdResiever.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Transiever.ThunderbirdResiever\Transiever.ThunderbirdResiever.csproj" />
+  </ItemGroup>
+</Project>

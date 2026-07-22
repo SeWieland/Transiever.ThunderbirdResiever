@@ -1,0 +1,62 @@
+version: 2
+
+updates:
+  - package-ecosystem: nuget
+    directories:
+      - /src/Transiever.ThunderbirdResiever
+      - /src/Transiever.ThunderbirdResiever.UnitTest
+      - /src/Transiever.ThunderbirdResiever.Cli.UnitTest
+    schedule:
+      interval: daily
+      time: '08:00'
+      timezone: Europe/Berlin
+    cooldown:
+      default-days: 1
+      exclude:
+        - Transiever.*
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      dependencies:
+        patterns: ['*']
+        update-types: [patch, minor]
+      major-dependencies:
+        patterns: ['*']
+        update-types: [major]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: daily
+      time: '08:00'
+      timezone: Europe/Berlin
+    cooldown:
+      default-days: 1
+    commit-message:
+      prefix: chore(deps-ci)
+    ignore:
+      - dependency-name: conventional-changelog-conventionalcommits
+        update-types: [version-update:semver-major]
+    groups:
+      release-tooling:
+        dependency-type: development
+        update-types: [patch, minor]
+      major-dependencies:
+        patterns: ['*']
+        update-types: [major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+      time: '08:00'
+      timezone: Europe/Berlin
+    cooldown:
+      default-days: 1
+    commit-message:
+      prefix: chore(deps-ci)
+    groups:
+      actions-minor-patch:
+        update-types: [patch, minor]
+      actions-major:
+        update-types: [major]
