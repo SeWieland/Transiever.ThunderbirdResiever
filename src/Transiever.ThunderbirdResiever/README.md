@@ -5,4 +5,4 @@ This library discovers Thunderbird account filter files, reads the narrow accoun
 It is non-packaged and read-only.
 Unsupported enabled rules return diagnostics instead of partial approximations.
 
-The complete compatibility and safety contract lives in [../../docs/thunderbird-export.md](../../docs/thunderbird-export.md).
+The complete compatibility and safety contract lives in the [Thunderbird export and compatibility guide](../../docs/thunderbird-export.md).
