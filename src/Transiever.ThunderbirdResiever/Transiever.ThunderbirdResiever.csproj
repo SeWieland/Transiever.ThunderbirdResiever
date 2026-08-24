@@ -15,6 +15,6 @@
     <ProjectReference Include="$(SieveRulerProject)" />
   </ItemGroup>
   <ItemGroup Condition="!Exists('$(SieveRulerProject)')">
-    <PackageReference Include="Transiever.SieveRuler" Version="1.1.1" />
+    <PackageReference Include="Transiever.SieveRuler" Version="1.1.2" />
   </ItemGroup>
 </Project>
