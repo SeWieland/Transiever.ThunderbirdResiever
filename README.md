@@ -14,7 +14,8 @@ Thunderbird msgFilterRules.dat
 > Testers are wanted, especially for real Windows, Linux, Flatpak, and Snap profile layouts.
 > Please report redacted results in [GitHub Issues](https://github.com/SeWieland/Transiever.ThunderbirdResiever/issues).
 
-`tbrx` reads one Thunderbird IMAP account per invocation and never modifies Thunderbird data.
+`tbrx` reads one Thunderbird account per invocation and never modifies Thunderbird data.
+`export` supports conservative local export for complete POP sources; `run` remains IMAP-only for deployment.
 It can discover standard profiles or use an explicit profile/filter file.
 
 ```bash
