@@ -13,6 +13,14 @@ internal sealed class TestDirectory : IDisposable
         return path;
     }
 
+    public string CreateDirectoryLink(string relative, string target)
+    {
+        string link = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(link)!);
+        Directory.CreateSymbolicLink(link, target);
+        return link;
+    }
+
     public string Write(string relative, string content)
     {
         string path = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
