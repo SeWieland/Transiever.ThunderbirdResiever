@@ -42,7 +42,8 @@ public sealed record ThunderbirdExportDiagnostic(
 
 public sealed record ThunderbirdSourceDiscoveryResult(
     IReadOnlyList<ThunderbirdRuleSource> Sources,
-    IReadOnlyList<ThunderbirdExportDiagnostic> Diagnostics);
+    IReadOnlyList<ThunderbirdExportDiagnostic> Diagnostics,
+    bool IsComplete = true);
 
 public sealed record ThunderbirdRuleExportResult(
     ThunderbirdRuleSource Source,

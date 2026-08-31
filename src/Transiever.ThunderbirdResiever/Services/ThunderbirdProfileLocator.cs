@@ -14,35 +14,49 @@ public sealed class ThunderbirdProfileLocator(
     public ThunderbirdSourceDiscoveryResult Discover(ThunderbirdSourceRequest request)
     {
         string? requestedFilters = FullPathOrNull(request.FiltersFile);
-        IReadOnlyList<string> profiles = ResolveProfiles(request, requestedFilters);
         var sources = new List<ThunderbirdRuleSource>();
         var diagnostics = new List<ThunderbirdExportDiagnostic>();
+        string? requestedProfile = FullPathOrNull(request.ProfileDirectory);
+        if (requestedProfile is not null &&
+            !File.Exists(Path.Combine(requestedProfile, "prefs.js")))
+        {
+            diagnostics.Add(new ThunderbirdExportDiagnostic(
+                "Error",
+                "TBRX_PROFILE_INVALID",
+                $"The selected Thunderbird profile does not contain prefs.js: {requestedProfile}"));
+            return new ThunderbirdSourceDiscoveryResult(sources, diagnostics, false);
+        }
+
+        bool isComplete = true;
+        IReadOnlyList<string> profiles = ResolveProfiles(
+            request,
+            requestedFilters,
+            diagnostics,
+            ref isComplete);
 
         foreach (string profile in profiles)
-            DiscoverProfile(profile, requestedFilters, sources, diagnostics);
+            isComplete &= DiscoverProfile(profile, requestedFilters, sources, diagnostics);
 
-        List<ThunderbirdRuleSource> distinct = sources
-            .GroupBy(source => Path.GetFullPath(source.FiltersFile), PathComparer())
-            .Select(group => group.First())
-            .OrderBy(source => source.Hostname, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(source => source.Username, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(source => source.FiltersFile, PathComparer())
-            .ToList();
+        IReadOnlyList<ThunderbirdRuleSource> distinct =
+            CollapseMappings(sources, diagnostics, ref isComplete);
 
         if (requestedFilters is not null && distinct.Count == 0)
         {
+            isComplete = false;
             diagnostics.Add(new ThunderbirdExportDiagnostic(
                 "Error",
                 "TBRX_SOURCE_NOT_MAPPED",
                 "The selected filter file could not be associated with a Thunderbird account in prefs.js."));
         }
 
-        return new ThunderbirdSourceDiscoveryResult(distinct, diagnostics);
+        return new ThunderbirdSourceDiscoveryResult(distinct, diagnostics, isComplete);
     }
 
     private IReadOnlyList<string> ResolveProfiles(
         ThunderbirdSourceRequest request,
-        string? requestedFilters)
+        string? requestedFilters,
+        List<ThunderbirdExportDiagnostic> diagnostics,
+        ref bool isComplete)
     {
         if (!string.IsNullOrWhiteSpace(request.ProfileDirectory))
             return [Path.GetFullPath(request.ProfileDirectory)];
@@ -67,7 +81,7 @@ public sealed class ThunderbirdProfileLocator(
             string root = Path.GetFullPath(rootValue);
             string ini = Path.Combine(root, "profiles.ini");
             if (File.Exists(ini))
-                profiles.AddRange(ReadProfilesIni(root, ini));
+                profiles.AddRange(ReadProfilesIni(root, ini, diagnostics, ref isComplete));
             else if (File.Exists(Path.Combine(root, "prefs.js")))
                 profiles.Add(root);
         }
@@ -78,12 +92,13 @@ public sealed class ThunderbirdProfileLocator(
             .ToArray();
     }
 
-    private void DiscoverProfile(
+    private bool DiscoverProfile(
         string profile,
         string? requestedFilters,
         List<ThunderbirdRuleSource> sources,
         List<ThunderbirdExportDiagnostic> diagnostics)
     {
+        bool isComplete = true;
         string prefsPath = Path.Combine(profile, "prefs.js");
         if (!File.Exists(prefsPath))
         {
@@ -91,29 +106,37 @@ public sealed class ThunderbirdProfileLocator(
                 "Warning",
                 "TBRX_PREFS_MISSING",
                 $"Skipped profile without prefs.js: {profile}"));
-            return;
+            return false;
         }
 
         Dictionary<string, string> preferences = ParseStringPreferences(
             DecodeUtf8(reader.ReadAllBytes(prefsPath), prefsPath));
-        Dictionary<string, string> accountServers = preferences
-            .Where(pair => pair.Key.StartsWith("mail.account.", StringComparison.Ordinal) &&
-                pair.Key.EndsWith(".server", StringComparison.Ordinal))
-            .ToDictionary(
-                pair => pair.Value,
-                pair => pair.Key["mail.account.".Length..^".server".Length],
-                StringComparer.Ordinal);
-
         string prefix = "mail.server.";
         IEnumerable<string> serverKeys = preferences.Keys
             .Where(key => key.StartsWith(prefix, StringComparison.Ordinal) &&
                 key.EndsWith(".type", StringComparison.Ordinal))
             .Select(key => key[prefix.Length..^".type".Length])
+            .Concat(preferences
+                .Where(pair =>
+                    pair.Key.StartsWith("mail.account.", StringComparison.Ordinal) &&
+                    pair.Key.EndsWith(".server", StringComparison.Ordinal))
+                .Select(pair => pair.Value))
             .Distinct(StringComparer.Ordinal);
 
         foreach (string serverKey in serverKeys)
         {
             string keyPrefix = $"mail.server.{serverKey}.";
+            string? localDirectory = ResolveServerDirectory(profile, keyPrefix, preferences);
+            if (requestedFilters is not null)
+            {
+                if (localDirectory is null)
+                    continue;
+
+                string candidateFilters = Path.GetFullPath(Path.Combine(localDirectory, "msgFilterRules.dat"));
+                if (!PathComparer().Equals(candidateFilters, requestedFilters))
+                    continue;
+            }
+
             if (!preferences.TryGetValue(keyPrefix + "type", out string? serverType) ||
                 !preferences.TryGetValue(keyPrefix + "hostname", out string? hostname) ||
                 !preferences.TryGetValue(keyPrefix + "userName", out string? username))
@@ -122,30 +145,44 @@ public sealed class ThunderbirdProfileLocator(
                     "Warning",
                     "TBRX_ACCOUNT_INCOMPLETE",
                     $"Skipped Thunderbird server '{serverKey}' because type, hostname, or username is missing."));
+                isComplete = false;
                 continue;
             }
 
-            string? localDirectory = ResolveServerDirectory(profile, keyPrefix, preferences);
             if (localDirectory is null)
             {
                 diagnostics.Add(new ThunderbirdExportDiagnostic(
                     "Warning",
                     "TBRX_ACCOUNT_DIRECTORY_MISSING",
                     $"Skipped Thunderbird server '{serverKey}' because its local directory is unresolved."));
+                isComplete = false;
                 continue;
             }
 
             string filters = Path.GetFullPath(Path.Combine(localDirectory, "msgFilterRules.dat"));
-            if (!File.Exists(filters) ||
-                (requestedFilters is not null && !PathComparer().Equals(filters, requestedFilters)))
+            if (!File.Exists(filters))
             {
+                diagnostics.Add(new ThunderbirdExportDiagnostic(
+                    "Warning",
+                    "TBRX_FILTERS_MISSING",
+                    $"Skipped Thunderbird server '{serverKey}' because msgFilterRules.dat is missing: {filters}"));
+                isComplete = false;
                 continue;
             }
+
+            string accountKey = preferences
+                .Where(pair =>
+                    pair.Key.StartsWith("mail.account.", StringComparison.Ordinal) &&
+                    pair.Key.EndsWith(".server", StringComparison.Ordinal) &&
+                    pair.Value.Equals(serverKey, StringComparison.Ordinal))
+                .Select(pair => pair.Key["mail.account.".Length..^".server".Length])
+                .Order(StringComparer.Ordinal)
+                .FirstOrDefault() ?? serverKey;
 
             sources.Add(new ThunderbirdRuleSource(
                 Path.GetFullPath(profile),
                 filters,
-                accountServers.GetValueOrDefault(serverKey, serverKey),
+                accountKey,
                 serverKey,
                 serverType,
                 hostname,
@@ -159,6 +196,41 @@ public sealed class ThunderbirdProfileLocator(
                     $"Account '{username}@{hostname}' uses '{serverType}' and cannot be deployed by tbrx."));
             }
         }
+
+        return isComplete;
+    }
+
+    private static IReadOnlyList<ThunderbirdRuleSource> CollapseMappings(
+        IEnumerable<ThunderbirdRuleSource> mappings,
+        List<ThunderbirdExportDiagnostic> diagnostics,
+        ref bool isComplete)
+    {
+        var collapsed = new List<ThunderbirdRuleSource>();
+        foreach (IGrouping<string, ThunderbirdRuleSource> group in mappings.GroupBy(
+            source => Path.GetFullPath(source.FiltersFile),
+            PathComparer()))
+        {
+            if (group.Select(source => source.SourceId).Distinct(StringComparer.Ordinal).Skip(1).Any())
+            {
+                diagnostics.Add(new ThunderbirdExportDiagnostic(
+                    "Error",
+                    "TBRX_SOURCE_AMBIGUOUS",
+                    $"The filter file maps to more than one Thunderbird account identity: {group.Key}"));
+                isComplete = false;
+                continue;
+            }
+
+            collapsed.Add(group
+                .OrderBy(source => source.AccountKey, StringComparer.Ordinal)
+                .ThenBy(source => source.ServerKey, StringComparer.Ordinal)
+                .First());
+        }
+
+        return collapsed
+            .OrderBy(source => source.Hostname, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(source => source.Username, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(source => source.FiltersFile, PathComparer())
+            .ToArray();
     }
 
     private static string? ResolveServerDirectory(
@@ -188,10 +260,15 @@ public sealed class ThunderbirdProfileLocator(
         return null;
     }
 
-    private IEnumerable<string> ReadProfilesIni(string root, string path)
+    private IReadOnlyList<string> ReadProfilesIni(
+        string root,
+        string path,
+        List<ThunderbirdExportDiagnostic> diagnostics,
+        ref bool isComplete)
     {
         string text = DecodeUtf8(reader.ReadAllBytes(path), path);
         Dictionary<string, Dictionary<string, string>> sections = ParseIni(text);
+        var profiles = new List<string>();
         foreach ((string name, Dictionary<string, string> values) in sections)
         {
             if (!name.StartsWith("Profile", StringComparison.OrdinalIgnoreCase) ||
@@ -201,10 +278,23 @@ public sealed class ThunderbirdProfileLocator(
             }
 
             bool relative = !values.TryGetValue("IsRelative", out string? flag) || flag == "1";
-            yield return Path.GetFullPath(relative
+            if (relative == Path.IsPathRooted(configuredPath))
+            {
+                diagnostics.Add(new ThunderbirdExportDiagnostic(
+                    "Warning",
+                    "TBRX_PROFILE_PATH_INVALID",
+                    $"Skipped profiles.ini entry '{name}' because IsRelative={flag ?? "1"} does not match " +
+                    $"path '{configuredPath}'. Use IsRelative=1 for relative paths and 0 for rooted paths."));
+                isComplete = false;
+                continue;
+            }
+
+            profiles.Add(Path.GetFullPath(relative
                 ? Path.Combine(root, configuredPath.Replace('/', Path.DirectorySeparatorChar))
-                : configuredPath);
+                : configuredPath));
         }
+
+        return profiles;
     }
 
     private static Dictionary<string, Dictionary<string, string>> ParseIni(string text)
@@ -325,15 +415,22 @@ public sealed class ThunderbirdProfileLocator(
     private static StringComparer PathComparer() =>
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
-    private static IReadOnlyList<string> DefaultDiscoveryRoots()
+    private static IReadOnlyList<string> DefaultDiscoveryRoots() =>
+        DefaultDiscoveryRoots(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            OperatingSystem.IsWindows());
+
+    internal static IReadOnlyList<string> DefaultDiscoveryRoots(
+        string? appData,
+        string? home,
+        bool isWindows)
     {
         var result = new List<string>();
-        string? appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        if (OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(appData))
+        if (isWindows && !string.IsNullOrWhiteSpace(appData))
             result.Add(Path.Combine(appData, "Thunderbird"));
 
-        string? home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (!string.IsNullOrWhiteSpace(home))
+        if (!isWindows && !string.IsNullOrWhiteSpace(home))
         {
             result.Add(Path.Combine(home, ".thunderbird"));
             result.Add(Path.Combine(home, ".var", "app", "org.mozilla.Thunderbird", ".thunderbird"));
