@@ -17,15 +17,15 @@ public sealed class ThunderbirdRuleExporterTests
             enabled="yes"
             type="1"
             action="Move to folder"
-            actionValue="imap://user%40example.com@imap.example.com/INBOX/Team%20Mail"
+            actionValue="imap://user%40example.invalid@imap.example.invalid/INBOX/Team%20Mail"
             action="Mark read"
             action="Stop execution"
-            condition="AND (from,contains,alice@example.com) AND (subject,doesn't contain,ignore)"
+            condition="AND (from,contains,alice@example.invalid) AND (subject,doesn't contain,ignore)"
             name="Anhang"
             enabled="yes"
             type="1"
             action="Copy to folder"
-            actionValue="imap://user%40example.com@imap.example.com/Archive/%C3%9Cber"
+            actionValue="imap://user%40example.invalid@imap.example.invalid/Archive/%C3%9Cber"
             condition="OR (subject,contains,Rechnung) OR (body,contains,Rechnung)"
             name="Attachment"
             enabled="yes"
@@ -55,7 +55,7 @@ public sealed class ThunderbirdRuleExporterTests
     }
 
     [Theory]
-    [InlineData("Forward", "person@example.com")]
+    [InlineData("Forward", "person@example.invalid")]
     [InlineData("Delete", null)]
     [InlineData("AddTag", "important")]
     public void Export_skips_whole_rule_for_unsupported_action(string action, string? value)
@@ -69,7 +69,7 @@ public sealed class ThunderbirdRuleExporterTests
             type="1"
             action="Mark read"
             action="{{action}}"
-            {{actionValue}}condition="AND (from,contains,alice@example.com)"
+            {{actionValue}}condition="AND (from,contains,alice@example.invalid)"
             """);
 
         ThunderbirdRuleExportResult result = new ThunderbirdRuleExporter(reader).Export(Source("ignored"));
@@ -124,6 +124,60 @@ public sealed class ThunderbirdRuleExporterTests
     }
 
     [Theory]
+    [InlineData("imap://user%40example.invalid@IMAP.EXAMPLE.INVALID./INBOX/Team", "INBOX/Team")]
+    [InlineData("imap://USER%40EXAMPLE.INVALID@imap.example.invalid/Archive", "Archive")]
+    public void Export_maps_same_account_folder_with_normalized_account_identity(
+        string folderUri,
+        string expectedFolder)
+    {
+        var reader = new MemoryReader($$"""
+            version="9"
+            logging="no"
+            name="Same account"
+            enabled="yes"
+            type="1"
+            action="Move to folder"
+            actionValue="{{folderUri}}"
+            condition="AND (from,contains,alice@example.invalid)"
+            """);
+
+        ThunderbirdRuleExportResult result = new ThunderbirdRuleExporter(reader).Export(
+            Source("ignored", "imap.example.invalid", "user@example.invalid"));
+
+        Assert.Single(result.Rules);
+        Assert.Equal(expectedFolder, result.Rules.Single().TargetFolder);
+        Assert.Empty(result.Diagnostics);
+    }
+
+    [Theory]
+    [InlineData("imap://user%40example.invalid@other.example.invalid/Inbox")]
+    [InlineData("imap://other%40example.invalid@imap.example.invalid/Inbox")]
+    [InlineData("mailbox:///Local%20Folders/Inbox")]
+    [InlineData("pop://user%40example.invalid@imap.example.invalid/Inbox")]
+    [InlineData("imap://user%40example.invalid@imap.example.invalid")]
+    public void Export_skips_whole_rule_for_unsupported_or_unowned_folder_target(string folderUri)
+    {
+        var reader = new MemoryReader($$"""
+            version="9"
+            logging="no"
+            name="Unsafe folder"
+            enabled="yes"
+            type="1"
+            action="Move to folder"
+            actionValue="{{folderUri}}"
+            condition="AND (from,contains,alice@example.invalid)"
+            """);
+
+        ThunderbirdRuleExportResult result = new ThunderbirdRuleExporter(reader).Export(
+            Source("ignored", "imap.example.invalid", "user@example.invalid"));
+
+        Assert.Empty(result.Rules);
+        Assert.True(result.IsPartial);
+        Assert.Equal(1, result.SkippedEnabledRuleCount);
+        Assert.Equal("TBRX_RULE_SKIPPED", result.Diagnostics.Single().Code);
+    }
+
+    [Theory]
     [InlineData("version=\"8\"\nlogging=\"no\"")]
     [InlineData("version=\"9\"\nlogging=\"no\"\nmystery=\"x\"")]
     [InlineData("version=\"9\"\nlogging=\"no\"\nname=broken")]
@@ -162,8 +216,11 @@ public sealed class ThunderbirdRuleExporterTests
         Assert.Equal(writeTime, File.GetLastWriteTimeUtc(filters));
     }
 
-    private static ThunderbirdRuleSource Source(string filters) =>
-        new("profile", filters, "account1", "server1", "imap", "imap.example.com", "user@example.com");
+    private static ThunderbirdRuleSource Source(
+        string filters,
+        string hostname = "imap.example.invalid",
+        string username = "user@example.invalid") =>
+        new("profile", filters, "account1", "server1", "imap", hostname, username);
 
     private sealed class MemoryReader(string text) : IStableFileReader
     {

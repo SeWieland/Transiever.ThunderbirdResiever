@@ -12,7 +12,7 @@ public sealed class CommandLineOptionsTests
     public void Run_accepts_source_partial_and_shared_options()
     {
         CommandLineOptions options = CommandLineOptions.Parse(
-            ["run", "--filters", "rules.dat", "--allow-partial", "--deploy", "--no-optimize", "--sieve-host", "example.com"]);
+            ["run", "--filters", "rules.dat", "--allow-partial", "--deploy", "--no-optimize", "--sieve-host", "example.invalid"]);
 
         Assert.Equal(ThunderbirdResieverCommand.Run, options.Command);
         Assert.Equal("rules.dat", options.FiltersFile);
@@ -23,7 +23,7 @@ public sealed class CommandLineOptionsTests
 
     [Theory]
     [InlineData("export", "--deploy")]
-    [InlineData("export", "--sieve-host", "example.com")]
+    [InlineData("export", "--sieve-host", "example.invalid")]
     [InlineData("rollback", "--profile", "profile")]
     [InlineData("rollback", "--rules", "rules.json")]
     public void Commands_reject_options_owned_by_other_workflows(params string[] args)

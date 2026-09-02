@@ -117,6 +117,16 @@ public sealed class ThunderbirdResieverCliApplication(
         ThunderbirdSourceDiscoveryResult discovery = thunderbird.Discover(
             new ThunderbirdSourceRequest(options.ProfileDirectory, options.FiltersFile));
         ConsolePresentation.PrintDiagnostics(discovery.Diagnostics);
+        if (!discovery.IsComplete)
+        {
+            string guidance = options.FiltersFile is not null
+                ? "The selected filter file did not map completely to one account."
+                : options.ProfileDirectory is null
+                    ? "Narrow discovery with --profile or --filters."
+                    : "Select the exact account with --filters.";
+            throw new InvalidOperationException(
+                $"Thunderbird source discovery was incomplete. {guidance}");
+        }
         return interaction.ResolveSource(discovery.Sources);
     }
 

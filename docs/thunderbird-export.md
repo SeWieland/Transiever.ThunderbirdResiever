@@ -3,21 +3,26 @@
 `tbrx` reads Thunderbird data only.
 It never edits, copies, normalizes, or exclusively locks a profile file.
 
-Profile discovery checks:
+Profile discovery checks exactly these roots:
 
 - `%APPDATA%\Thunderbird` on Windows.
 - `~/.thunderbird` on standard Linux installations.
 - `~/.var/app/org.mozilla.Thunderbird/.thunderbird` for Flatpak.
 - `~/snap/thunderbird/common/.thunderbird` for Snap.
 
-Use `--profile <directory>` for a relocated profile or `--filters <msgFilterRules.dat>` for an exact account source.
+Use `--profile <directory>` as the explicit profile fallback for a relocated profile.
+Use `--filters <msgFilterRules.dat>` as the exact-filter fallback when one account must be selected or unrelated profile entries are incomplete.
 Discovery reads `profiles.ini` and only the `mail.account.*` and `mail.server.*` string preferences needed from `prefs.js`.
 It is not a general JavaScript parser.
+Profile and filter paths use native comparison semantics: Windows comparisons are case-insensitive, while Linux comparisons are case-sensitive.
+Paths are compared lexically without resolving filesystem links, so Linux symlink or bind-mount aliases remain distinct path spellings.
 
 Filters are per account.
 If exactly one source is eligible, `tbrx` selects it.
 Interactive runs prompt when several exist; redirected input must specify `--filters`.
-Only an account whose IMAP hostname, username, server type, and local directory resolve from `prefs.js` may enter `run`.
+Only an account whose hostname, username, server type, and local directory resolve from `prefs.js` may enter source selection.
+Incomplete discovery is refused before export, credentials, or network access; an exact filter still must map completely to one account.
+`export` may produce a conservative local result for a complete POP source, but `run` is IMAP-only and rejects POP before configuration or deployment.
 
 The parser accepts strict UTF-8 `msgFilterRules.dat` format version 9 and Mozilla's line-oriented quoted attribute format.
 Malformed files and unknown file versions fail.
@@ -42,7 +47,8 @@ Disabled rules are ignored.
 | Match-all/manual/post-junk/custom rules | No equivalent | Diagnostic and skip |
 
 Folder actions require an `imap://` URI whose host and user match the selected account.
-Cross-account, local, news, POP, and ambiguous targets are skipped with their whole rule.
+The mailbox path is URI-decoded and retains Thunderbird's native casing; host and username comparisons ignore case and trim trailing host dots, but do not DNS-resolve or canonicalize aliases.
+Cross-account, local, news, POP, and empty or ambiguous targets are skipped with their whole rule.
 
 ## Partial exports
 
