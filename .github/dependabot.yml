@@ -4,6 +4,7 @@ updates:
   - package-ecosystem: nuget
     directories:
       - /src/Transiever.ThunderbirdResiever
+      - /src/Transiever.ThunderbirdResiever.Cli
       - /src/Transiever.ThunderbirdResiever.UnitTest
       - /src/Transiever.ThunderbirdResiever.Cli.UnitTest
     schedule:
