@@ -102,6 +102,8 @@ public sealed class ThunderbirdRuleExporter(IStableFileReader? fileReader = null
             switch (key)
             {
                 case "enabled":
+                    if (current.HasEnabled)
+                        throw ParseError(lineNumber, "Rule contains more than one enabled field.");
                     current.Enabled = value switch
                     {
                         "yes" => true,
@@ -113,6 +115,8 @@ public sealed class ThunderbirdRuleExporter(IStableFileReader? fileReader = null
                 case "description":
                     break;
                 case "type":
+                    if (current.Type is not null)
+                        throw ParseError(lineNumber, "Rule contains more than one type field.");
                     if (!int.TryParse(value, out int type))
                         throw ParseError(lineNumber, "Rule type is not an integer.");
                     current.Type = type;
