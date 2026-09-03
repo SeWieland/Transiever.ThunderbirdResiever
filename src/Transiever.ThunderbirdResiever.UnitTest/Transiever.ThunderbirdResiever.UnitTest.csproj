@@ -15,4 +15,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Transiever.ThunderbirdResiever\Transiever.ThunderbirdResiever.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="Fixtures\ThunderbirdV1\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

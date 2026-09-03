@@ -55,72 +55,70 @@ public sealed class ThunderbirdRuleExporterTests
     }
 
     [Theory]
-    [InlineData("Forward", "person@example.invalid")]
-    [InlineData("Delete", null)]
-    [InlineData("AddTag", "important")]
-    public void Export_skips_whole_rule_for_unsupported_action(string action, string? value)
+    [InlineData("type=\"17\"\naction=\"Mark read\"\ncondition=\"AND (from,contains,unsafe@example.invalid)\"")]
+    [InlineData("type=\"1\"\naction=\"Mark read\"\ncondition=\"ALL\"")]
+    [InlineData("type=\"1\"\naction=\"Mark read\"\ncondition=\"OR (from,doesn't contain,a) OR (subject,contains,b)\"")]
+    [InlineData("type=\"1\"\naction=\"Mark read\"\ncondition=\"AND (to,contains,unsafe@example.invalid)\"")]
+    [InlineData("type=\"1\"\naction=\"Mark read\"\naction=\"Forward\"\nactionValue=\"person@example.invalid\"\ncondition=\"AND (from,contains,unsafe@example.invalid)\"")]
+    [InlineData("type=\"1\"\naction=\"Mark read\"\naction=\"Delete\"\ncondition=\"AND (from,contains,unsafe@example.invalid)\"")]
+    [InlineData("type=\"1\"\naction=\"Mark read\"\naction=\"AddTag\"\nactionValue=\"important\"\ncondition=\"AND (from,contains,unsafe@example.invalid)\"")]
+    public void Export_skips_unsafe_enabled_rule_as_a_whole(string unsafeRule)
     {
-        string actionValue = value is null ? "" : $"actionValue=\"{value}\"\n";
         var reader = new MemoryReader($$"""
             version="9"
             logging="no"
-            name="Unsafe"
+            name="Before"
             enabled="yes"
             type="1"
             action="Mark read"
-            action="{{action}}"
-            {{actionValue}}condition="AND (from,contains,alice@example.invalid)"
-            """);
-
-        ThunderbirdRuleExportResult result = new ThunderbirdRuleExporter(reader).Export(Source("ignored"));
-
-        Assert.Empty(result.Rules);
-        Assert.True(result.IsPartial);
-        Assert.Equal(1, result.SkippedEnabledRuleCount);
-        Assert.Contains(action, result.Diagnostics.Single().Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Theory]
-    [InlineData("17", "AND (from,contains,a)")]
-    [InlineData("1", "ALL")]
-    [InlineData("1", "OR (from,doesn't contain,a) OR (subject,contains,b)")]
-    [InlineData("1", "AND (to,contains,a)")]
-    public void Export_skips_unsupported_context_or_condition(string type, string condition)
-    {
-        var reader = new MemoryReader($$"""
-            version="9"
-            logging="no"
-            name="Unsupported"
+            condition="AND (from,contains,before@example.invalid)"
+            name="Unsafe"
             enabled="yes"
-            type="{{type}}"
+            {{unsafeRule}}
+            name="After"
+            enabled="yes"
+            type="1"
             action="Mark read"
-            condition="{{condition}}"
+            condition="AND (from,contains,after@example.invalid)"
             """);
 
         ThunderbirdRuleExportResult result = new ThunderbirdRuleExporter(reader).Export(Source("ignored"));
 
-        Assert.Empty(result.Rules);
-        Assert.Single(result.Diagnostics);
+        Assert.Equal(["Before", "After"], result.Rules.Select(rule => rule.Name));
+        Assert.Equal(3, result.EnabledRuleCount);
+        Assert.Equal(1, result.SkippedEnabledRuleCount);
+        ThunderbirdExportDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("Warning", diagnostic.Severity);
+        Assert.Equal("TBRX_RULE_SKIPPED", diagnostic.Code);
+        Assert.Equal("Unsafe", diagnostic.RuleName);
     }
 
     [Fact]
-    public void Export_rejects_cross_account_folder()
+    public void Export_ignores_unsupported_fields_in_disabled_rule()
     {
         var reader = new MemoryReader("""
             version="9"
             logging="no"
-            name="Cross account"
+            name="Disabled"
+            enabled="no"
+            type="1"
+            customId="recognized-but-unsupported"
+            action="Forward"
+            actionValue="person@example.invalid"
+            condition="AND (from,contains,disabled@example.invalid)"
+            name="Enabled"
             enabled="yes"
             type="1"
-            action="Move to folder"
-            actionValue="imap://other@example.net/INBOX"
-            condition="AND (from,contains,a)"
+            action="Mark read"
+            condition="AND (from,contains,enabled@example.invalid)"
             """);
 
         ThunderbirdRuleExportResult result = new ThunderbirdRuleExporter(reader).Export(Source("ignored"));
 
-        Assert.Empty(result.Rules);
-        Assert.Contains("different", result.Diagnostics.Single().Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(["Enabled"], result.Rules.Select(rule => rule.Name));
+        Assert.Equal(1, result.EnabledRuleCount);
+        Assert.Equal(0, result.SkippedEnabledRuleCount);
+        Assert.Empty(result.Diagnostics);
     }
 
     [Theory]
@@ -178,20 +176,52 @@ public sealed class ThunderbirdRuleExporterTests
     }
 
     [Theory]
-    [InlineData("version=\"8\"\nlogging=\"no\"")]
-    [InlineData("version=\"9\"\nlogging=\"no\"\nmystery=\"x\"")]
-    [InlineData("version=\"9\"\nlogging=\"no\"\nname=broken")]
-    public void Export_rejects_unknown_or_malformed_files(string text)
+    [InlineData(true, "")]
+    [InlineData(false, "logging=\"no\"\nname=\"Valid\"\nenabled=\"yes\"\ntype=\"1\"\naction=\"Mark read\"\ncondition=\"AND (from,contains,alice@example.invalid)\"")]
+    [InlineData(false, "version=\"8\"\nlogging=\"no\"")]
+    [InlineData(false, "version=\"9\"\nlogging=\"no\"\nname=\"broken")]
+    [InlineData(false, "version=\"9\"\nlogging=\"no\"\nmystery=\"x\"")]
+    [InlineData(false, "version=\"9\"\nlogging=\"no\"\nenabled=\"yes\"")]
+    [InlineData(false, "version=\"9\"\nlogging=\"no\"\nname=\"Duplicate condition\"\nenabled=\"yes\"\ntype=\"1\"\ncondition=\"AND (from,contains,alice@example.invalid)\"\ncondition=\"AND (subject,contains,duplicate@example.invalid)\"")]
+    [InlineData(false, "version=\"9\"\nlogging=\"no\"\nname=\"Duplicate enabled\"\nenabled=\"yes\"\nenabled=\"no\"\ntype=\"1\"\naction=\"Mark read\"\ncondition=\"AND (from,contains,alice@example.invalid)\"")]
+    [InlineData(false, "version=\"9\"\nlogging=\"no\"\nname=\"Duplicate type\"\nenabled=\"yes\"\ntype=\"1\"\ntype=\"17\"\naction=\"Mark read\"\ncondition=\"AND (from,contains,alice@example.invalid)\"")]
+    [InlineData(false, "version=\"9\"\nlogging=\"no\"\nname=\"Missing enabled\"\ntype=\"1\"\naction=\"Mark read\"\ncondition=\"AND (from,contains,alice@example.invalid)\"")]
+    [InlineData(false, "version=\"9\"\nlogging=\"no\"\nname=\"Missing type\"\nenabled=\"yes\"\naction=\"Mark read\"\ncondition=\"AND (from,contains,alice@example.invalid)\"")]
+    [InlineData(false, "version=\"9\"\nlogging=\"no\"\nname=\"Missing condition\"\nenabled=\"yes\"\ntype=\"1\"\naction=\"Mark read\"")]
+    public void Export_rejects_complete_malformed_files(bool invalidUtf8, string text)
     {
+        byte[] bytes = invalidUtf8
+            ? [0xC3, 0x28]
+            : Encoding.UTF8.GetBytes(text);
+
         Assert.Throws<InvalidDataException>(
-            () => new ThunderbirdRuleExporter(new MemoryReader(text)).Export(Source("ignored")));
+            () => new ThunderbirdRuleExporter(new ByteReader(bytes)).Export(Source("ignored")));
     }
 
     [Fact]
     public void Export_propagates_snapshot_change_failure()
     {
+        using var directory = new TestDirectory();
+        string filters = directory.Write("msgFilterRules.dat", """
+            version="9"
+            logging="no"
+            name="Read only"
+            enabled="yes"
+            type="1"
+            action="Mark read"
+            condition="AND (body,contains,path\\value)"
+            """);
+        DateTime originalTimeUtc = File.GetLastWriteTimeUtc(filters);
+        byte[] changedBytes = File.ReadAllBytes(filters);
+        changedBytes[0] = changedBytes[0] == (byte)'v' ? (byte)'V' : (byte)'v';
+        var reader = new StableFileReader(path =>
+        {
+            File.WriteAllBytes(path, changedBytes);
+            File.SetLastWriteTimeUtc(path, originalTimeUtc);
+        });
+
         Assert.Throws<IOException>(
-            () => new ThunderbirdRuleExporter(new ThrowingReader()).Export(Source("ignored")));
+            () => new ThunderbirdRuleExporter(reader).Export(Source(filters)));
     }
 
     [Fact]
@@ -227,8 +257,9 @@ public sealed class ThunderbirdRuleExporterTests
         public byte[] ReadAllBytes(string path) => Encoding.UTF8.GetBytes(text);
     }
 
-    private sealed class ThrowingReader : IStableFileReader
+    private sealed class ByteReader(byte[] bytes) : IStableFileReader
     {
-        public byte[] ReadAllBytes(string path) => throw new IOException("changed");
+        public byte[] ReadAllBytes(string path) => bytes;
     }
+
 }

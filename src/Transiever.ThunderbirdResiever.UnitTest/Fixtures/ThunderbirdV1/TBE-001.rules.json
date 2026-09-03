@@ -1,0 +1,127 @@
+{
+  "$schema": "urn:sieveruler:rules:v1",
+  "schemaVersion": 1,
+  "sourceId": "thunderbird-4cbd0cf818a5b322",
+  "rules": [
+    {
+      "name": "Quoted \u0022Match All\u0022",
+      "targetFolder": "INBOX/Team Mail",
+      "actions": [
+        {
+          "type": "FileInto",
+          "values": [
+            "INBOX/Team Mail"
+          ]
+        },
+        {
+          "type": "SetFlags",
+          "values": [
+            "\\Seen"
+          ]
+        },
+        {
+          "type": "Stop",
+          "values": []
+        }
+      ],
+      "conditionMode": "All",
+      "conditions": [
+        {
+          "type": "SenderContains",
+          "values": [
+            "sender\\fictional"
+          ]
+        }
+      ],
+      "exceptions": [
+        {
+          "type": "SubjectContains",
+          "values": [
+            "exclude-fictional"
+          ]
+        }
+      ],
+      "ownership": "Managed",
+      "originalOrder": 1,
+      "requiredCapabilities": []
+    },
+    {
+      "name": "\u00DCnicode match any",
+      "targetFolder": "",
+      "actions": [
+        {
+          "type": "CopyInto",
+          "values": [
+            "Archive/\u00DCber"
+          ]
+        }
+      ],
+      "conditionMode": "Any",
+      "conditions": [
+        {
+          "type": "SubjectContains",
+          "values": [
+            "\u0444\u0438\u043B\u044C\u0442\u0440"
+          ]
+        },
+        {
+          "type": "BodyContains",
+          "values": [
+            "caf\u00E9"
+          ]
+        }
+      ],
+      "exceptions": [],
+      "ownership": "Managed",
+      "originalOrder": 2,
+      "requiredCapabilities": []
+    },
+    {
+      "name": "Attachment",
+      "targetFolder": "",
+      "actions": [
+        {
+          "type": "SetFlags",
+          "values": [
+            "\\Seen"
+          ]
+        }
+      ],
+      "conditionMode": "All",
+      "conditions": [
+        {
+          "type": "HasAttachment",
+          "values": []
+        }
+      ],
+      "exceptions": [],
+      "ownership": "Managed",
+      "originalOrder": 3,
+      "requiredCapabilities": []
+    },
+    {
+      "name": "Recipient",
+      "targetFolder": "",
+      "actions": [
+        {
+          "type": "Stop",
+          "values": []
+        }
+      ],
+      "conditionMode": "All",
+      "conditions": [
+        {
+          "type": "ReceiverContains",
+          "values": [
+            "recipient-fictional"
+          ]
+        }
+      ],
+      "exceptions": [],
+      "ownership": "Managed",
+      "originalOrder": 4,
+      "requiredCapabilities": []
+    }
+  ],
+  "diagnostics": []
+}

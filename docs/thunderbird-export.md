@@ -1,7 +1,10 @@
 # Thunderbird export and compatibility
 
 `tbrx` reads Thunderbird data only.
-It never edits, copies, normalizes, or exclusively locks a profile file.
+It never writes, copies, normalizes, or exclusively locks a profile file.
+Every Thunderbird input file is opened read-only with permissive sharing and read twice.
+Length and last-write metadata are checked before, between, and after the reads, and the bytes must match.
+This is a best-effort stability check, not an atomic snapshot.
 
 Profile discovery checks exactly these roots:
 
@@ -25,8 +28,8 @@ Incomplete discovery is refused before export, credentials, or network access; a
 `export` may produce a conservative local result for a complete POP source, but `run` is IMAP-only and rejects POP before configuration or deployment.
 
 The parser accepts strict UTF-8 `msgFilterRules.dat` format version 9 and Mozilla's line-oriented quoted attribute format.
-Malformed files and unknown file versions fail.
-Unsupported semantics produce diagnostics and skip the entire enabled rule.
+Malformed files and unknown file versions abort the export.
+Each enabled rule is the minimum export unit: unsupported conditions, actions, contexts, or folder targets produce diagnostics and skip the entire rule.
 Disabled rules are ignored.
 
 ## Compatibility matrix
@@ -52,9 +55,13 @@ Cross-account, local, news, POP, and empty or ambiguous targets are skipped with
 
 ## Partial exports
 
-`run` refuses zero exported rules.
-When one or more enabled rules are skipped, an interactive run requires explicit acknowledgement.
-Redirected input requires `--allow-partial`; otherwise it stops before credentials or network access.
+Plain `export` may write a partial result when enabled rules are skipped; review its diagnostics before using the result.
+An empty export always blocks `run` before configuration, credentials, network access, or deployment.
+When one or more enabled rules are skipped, an interactive `run` requires explicit acknowledgement.
+Redirected or unattended input requires `--allow-partial`; otherwise `run` stops before configuration, credentials, or network access.
+Interactive deployment asks for a separate confirmation unless `--deploy` is supplied.
+Redirected or unattended runs deploy only when `--deploy` is supplied; otherwise deployment is skipped.
+`--dry-run` never deploys and does not ask the deployment confirmation; a partial `run` still requires the partial-export acknowledgement above.
 
 Tester reports should include Thunderbird version, OS, package type, diagnostics, and only a minimal redacted fixture.
 Do not attach a complete profile or private mailbox data.
