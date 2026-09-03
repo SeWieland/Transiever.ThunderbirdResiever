@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Transiever.SieveRuler.Application;
 using Transiever.SieveRuler.Models;
 using Transiever.SieveRuler.Services;
@@ -6,6 +7,7 @@ using Transiever.ThunderbirdResiever.Services;
 
 namespace Transiever.ThunderbirdResiever.Cli.UnitTest;
 
+[Collection(ConsoleCaptureCollection.Name)]
 public sealed class ProgramWorkflowTests
 {
     [Fact]
@@ -17,40 +19,156 @@ public sealed class ProgramWorkflowTests
     }
 
     [Fact]
-    public async Task Run_blocks_empty_export_before_configuration_or_network()
+    public async Task Run_blocks_empty_export_before_partial_confirmation_configuration_or_preview()
     {
+        var exporter = new TrackingExporter();
         var configuration = new TrackingConfiguration();
+        var interaction = new TrackingInteraction();
         var synchronization = new StubSynchronization();
-        ThunderbirdResieverCliApplication cli = CreateCli([], 0, configuration, synchronization, new StubInteraction());
+        ThunderbirdResieverCliApplication cli = CreateCli(exporter, configuration, synchronization, interaction);
 
         int code = await cli.RunAsync(
-            CommandLineOptions.Parse(["run", "--filters", "fixture", "--no-optimize"]),
+            CommandLineOptions.Parse(["run", "--filters", "fixture", "--allow-partial", "--no-optimize"]),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(2, code);
+        Assert.True(exporter.Called);
+        Assert.False(interaction.ConfirmPartialCalled);
         Assert.False(configuration.Called);
-        Assert.False(synchronization.Called);
+        Assert.False(synchronization.PreviewCalled);
+        Assert.False(synchronization.DeployCalled);
     }
 
     [Fact]
     public async Task Run_blocks_unacknowledged_partial_export_before_configuration_or_network()
     {
+        var exporter = new TrackingExporter
+        {
+            Rules = [SupportedRule()],
+            SkippedEnabledRuleCount = 1
+        };
         var configuration = new TrackingConfiguration();
         var synchronization = new StubSynchronization();
-        ThunderbirdResieverCliApplication cli = CreateCli(
-            [SupportedRule()],
-            1,
-            configuration,
-            synchronization,
-            new StubInteraction { AcceptPartial = false });
+        var interaction = new TrackingInteraction();
+        ThunderbirdResieverCliApplication cli = CreateCli(exporter, configuration, synchronization, interaction);
 
         int code = await cli.RunAsync(
             CommandLineOptions.Parse(["run", "--filters", "fixture", "--no-optimize"]),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(2, code);
+        Assert.True(exporter.Called);
+        Assert.True(interaction.ConfirmPartialCalled);
+        Assert.False(interaction.ExplicitlyAllowed);
         Assert.False(configuration.Called);
-        Assert.False(synchronization.Called);
+        Assert.False(synchronization.PreviewCalled);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Run_acknowledges_partial_export_before_configuration_and_preview(bool allowPartial)
+    {
+        var exporter = new TrackingExporter
+        {
+            Rules = [SupportedRule()],
+            SkippedEnabledRuleCount = 1
+        };
+        var configuration = new TrackingConfiguration();
+        var interaction = new TrackingInteraction { AcceptPartial = !allowPartial };
+        var synchronization = new StubSynchronization { PreviewResult = PreparedPreview() };
+        var callOrder = new List<string>();
+        interaction.CallOrder = callOrder;
+        configuration.CallOrder = callOrder;
+        synchronization.CallOrder = callOrder;
+        ThunderbirdResieverCliApplication cli = CreateCli(exporter, configuration, synchronization, interaction);
+
+        string[] arguments = allowPartial
+            ? ["run", "--filters", "fixture", "--allow-partial", "--no-optimize"]
+            : ["run", "--filters", "fixture", "--no-optimize"];
+        int code = await cli.RunAsync(
+            CommandLineOptions.Parse(arguments),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, code);
+        Assert.True(interaction.ConfirmPartialCalled);
+        Assert.Equal(allowPartial, interaction.ExplicitlyAllowed);
+        Assert.True(configuration.Called);
+        Assert.True(synchronization.PreviewCalled);
+        Assert.NotNull(synchronization.LastPreviewRequest);
+        Assert.False(synchronization.LastPreviewRequest!.DryRun);
+        Assert.False(synchronization.DeployCalled);
+        Assert.Equal(["confirm-partial", "configuration", "preview"], callOrder);
+    }
+
+    [Fact]
+    public async Task Run_reports_partial_diagnostics_and_dry_run_never_deploys()
+    {
+        var exporter = new TrackingExporter
+        {
+            Rules = [SupportedRule()],
+            SkippedEnabledRuleCount = 1,
+            Diagnostics = [new ThunderbirdExportDiagnostic("Warning", "TBRX_RULE_SKIPPED", "Unsupported action.", "Unsafe")]
+        };
+        var synchronization = new StubSynchronization { PreviewResult = PreparedPreview() };
+        ThunderbirdResieverCliApplication cli = CreateCli(
+            exporter,
+            new TrackingConfiguration(),
+            synchronization,
+            new TrackingInteraction());
+        TextWriter originalError = Console.Error;
+        using var capturedError = new StringWriter();
+        Console.SetError(capturedError);
+
+        try
+        {
+            int code = await cli.RunAsync(
+                CommandLineOptions.Parse(["run", "--filters", "fixture", "--allow-partial", "--dry-run", "--no-optimize"]),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(0, code);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+
+        Assert.Contains("TBRX_RULE_SKIPPED", capturedError.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Unsafe", capturedError.ToString(), StringComparison.Ordinal);
+        Assert.True(synchronization.PreviewCalled);
+        Assert.True(synchronization.LastPreviewRequest!.DryRun);
+        Assert.False(synchronization.DeployCalled);
+    }
+
+    [Fact]
+    public async Task Run_propagates_missing_filter_file_before_configuration_or_preview()
+    {
+        string filters = Path.Combine(Path.GetTempPath(), $"tbrx-missing-{Guid.NewGuid():N}.dat");
+        ThunderbirdRuleSource source = new(
+            "profile",
+            filters,
+            "account1",
+            "server1",
+            "imap",
+            "imap.example.invalid",
+            "user@example.invalid");
+        var configuration = new TrackingConfiguration();
+        var synchronization = new StubSynchronization();
+        ThunderbirdResieverCliApplication cli = new(
+            new ThunderbirdExportApplication(
+                new FakeDiscovery(source),
+                new ThunderbirdRuleExporter(),
+                new JsonRuleSerializer()),
+            synchronization,
+            configuration,
+            new TrackingInteraction());
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() => cli.RunAsync(
+            CommandLineOptions.Parse(["run", "--filters", "fixture", "--no-optimize"]),
+            TestContext.Current.CancellationToken));
+
+        Assert.False(configuration.Called);
+        Assert.False(synchronization.PreviewCalled);
     }
 
     [Theory]
@@ -230,21 +348,35 @@ public sealed class ProgramWorkflowTests
     }
 
     private static ThunderbirdResieverCliApplication CreateCli(
-        IReadOnlyList<RuleDefinition> rules,
-        int skipped,
+        IThunderbirdRuleExporter exporter,
         TrackingConfiguration configuration,
         StubSynchronization synchronization,
-        StubInteraction interaction)
-    {
-        ThunderbirdRuleSource source = Source();
-        return new ThunderbirdResieverCliApplication(
+        TrackingInteraction interaction) =>
+        new(
             new ThunderbirdExportApplication(
-                new FakeDiscovery(source),
-                new FakeExporter(rules, skipped),
+                new FakeDiscovery(Source()),
+                exporter,
                 new JsonRuleSerializer()),
             synchronization,
             configuration,
             interaction);
+
+    private static PreviewSynchronizationResult PreparedPreview()
+    {
+        byte[] candidate = "keep;\r\n"u8.ToArray();
+        return new PreviewSynchronizationResult
+        {
+            Status = PreviewSynchronizationStatus.Prepared,
+            ManagedRuleCount = 1,
+            TargetScriptName = "srtx-test",
+            Plan = new DeploymentPlan
+            {
+                SourceContentSha256 = Convert.ToHexString(SHA256.HashData([])),
+                CandidateContentBase64 = Convert.ToBase64String(candidate),
+                CandidateContentSha256 = Convert.ToHexString(SHA256.HashData(candidate)),
+                TargetScriptName = "srtx-test"
+            }
+        };
     }
 
     private static ThunderbirdRuleSource Source(string serverType = "imap", string account = "account1") =>
@@ -287,11 +419,19 @@ public sealed class ProgramWorkflowTests
     private sealed class TrackingExporter : IThunderbirdRuleExporter
     {
         public bool Called { get; private set; }
+        public IReadOnlyList<RuleDefinition> Rules { get; init; } = [];
+        public IReadOnlyList<ThunderbirdExportDiagnostic> Diagnostics { get; init; } = [];
+        public int SkippedEnabledRuleCount { get; init; }
 
         public ThunderbirdRuleExportResult Export(ThunderbirdRuleSource source)
         {
             Called = true;
-            throw new InvalidOperationException("Exporter should not be called.");
+            return new(
+                source,
+                Rules,
+                Diagnostics,
+                Rules.Count + SkippedEnabledRuleCount,
+                SkippedEnabledRuleCount);
         }
     }
 
@@ -307,12 +447,22 @@ public sealed class ProgramWorkflowTests
     private sealed class TrackingInteraction : IThunderbirdRunInteraction
     {
         public bool Called { get; private set; }
+        public bool ConfirmPartialCalled { get; private set; }
+        public bool ExplicitlyAllowed { get; private set; }
+        public bool AcceptPartial { get; init; }
+        public List<string>? CallOrder { get; set; }
         public ThunderbirdRuleSource ResolveSource(IReadOnlyList<ThunderbirdRuleSource> sources)
         {
             Called = true;
             return sources.Single();
         }
-        public bool ConfirmPartial(bool explicitlyAllowed, int exportedCount, int skippedCount) => false;
+        public bool ConfirmPartial(bool explicitlyAllowed, int exportedCount, int skippedCount)
+        {
+            ConfirmPartialCalled = true;
+            ExplicitlyAllowed = explicitlyAllowed;
+            CallOrder?.Add("confirm-partial");
+            return explicitlyAllowed || AcceptPartial;
+        }
         public RuleOptimizationMode? ResolveOptimization(RuleOptimizationMode? explicitMode, bool explicitChoice) => null;
         public bool ConfirmUpload(bool explicitlyDeploy, string scriptName) => false;
     }
@@ -320,9 +470,11 @@ public sealed class ProgramWorkflowTests
     private sealed class TrackingConfiguration : ISieveServerConfigurationProvider
     {
         public bool Called { get; private set; }
+        public List<string>? CallOrder { get; set; }
         public SieveServerConfiguration GetConfiguration(CommandLineOptions options)
         {
             Called = true;
+            CallOrder?.Add("configuration");
             return new SieveServerConfiguration("example.invalid", 4190, "user", "secret", SieveConnectionSecurity.StartTlsRequired);
         }
     }
@@ -331,14 +483,23 @@ public sealed class ProgramWorkflowTests
     {
         public bool Called { get; private set; }
         public HistoryRestoreResult? RestoreResult { get; init; }
+        public bool PreviewCalled { get; private set; }
+        public bool DeployCalled { get; private set; }
+        public PreviewSynchronizationRequest? LastPreviewRequest { get; private set; }
+        public PreviewSynchronizationResult? PreviewResult { get; init; }
+        public List<string>? CallOrder { get; set; }
         public Task<PreviewSynchronizationResult> PreviewAsync(PreviewSynchronizationRequest request, CancellationToken cancellationToken)
         {
             Called = true;
-            throw new InvalidOperationException("Unexpected preview.");
+            PreviewCalled = true;
+            LastPreviewRequest = request;
+            CallOrder?.Add("preview");
+            return Task.FromResult(PreviewResult ?? throw new InvalidOperationException("Unexpected preview."));
         }
         public Task<DeploySynchronizationResult> DeployAsync(DeploySynchronizationRequest request, CancellationToken cancellationToken)
         {
             Called = true;
+            DeployCalled = true;
             throw new InvalidOperationException("Unexpected deploy.");
         }
         public Task<RollbackSynchronizationResult> RollbackAsync(RollbackSynchronizationRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
