@@ -48,3 +48,11 @@ dotnet run --project src/Transiever.ThunderbirdResiever.Cli -- --help
 
 No real Thunderbird files are committed.
 Tests create synthetic profiles in temporary directories.
+
+## AI usage
+
+Transiever is a personal hobby project created to solve practical problems I have encountered myself.
+
+AI is used heavily throughout its development. It supports research, design exploration, implementation, debugging, and documentation.
+
+The project is developed using test-driven development and reviewed by a human, me. Its direction, behavior, and quality remain guided by the problems it is intended to solve.
