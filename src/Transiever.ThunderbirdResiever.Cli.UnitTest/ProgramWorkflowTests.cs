@@ -339,7 +339,7 @@ public sealed class ProgramWorkflowTests
 
         int code = await cli.RunAsync(
             CommandLineOptions.Parse([
-                "rollback", "--dry-run", "--sieve-host", "example.invalid", "--sieve-username", "user", "--sieve-password", "secret"]),
+                "rollback", "--dry-run", "--sieve-host", "example.invalid", "--sieve-username", "user", "--sieve-password-stdin"]),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(0, code);

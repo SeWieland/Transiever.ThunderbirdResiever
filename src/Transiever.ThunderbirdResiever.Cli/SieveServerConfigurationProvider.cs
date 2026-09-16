@@ -14,7 +14,9 @@ public sealed class EnvironmentSieveServerConfigurationProvider : ISieveServerCo
     {
         string host = options.SieveHost ?? Required("HOST");
         string username = options.SieveUserName ?? Required("USERNAME");
-        string password = options.SievePassword ?? Read("PASSWORD") ?? ReadPassword();
+        string password = options.SievePasswordStdin
+            ? ReadStandardInputPassword()
+            : Read("PASSWORD") ?? ReadPassword();
         int port = options.SievePort ?? (int.TryParse(Read("PORT"), out int configuredPort)
             ? configuredPort
             : SieveServerConfiguration.DefaultPort);
@@ -35,6 +37,11 @@ public sealed class EnvironmentSieveServerConfigurationProvider : ISieveServerCo
 
     private static string? Read(string suffix) =>
         Environment.GetEnvironmentVariable($"TRANSIEVER_SIEVE_{suffix}");
+
+    private static string ReadStandardInputPassword() =>
+        Console.ReadLine() is { Length: > 0 } password
+            ? password
+            : throw new InvalidOperationException("Standard input did not contain a Sieve password.");
 
     private static string ReadPassword()
     {
