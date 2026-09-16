@@ -15,7 +15,7 @@
     <ProjectReference Include="$(SieveRulerProject)" />
   </ItemGroup>
   <ItemGroup Condition="!Exists('$(SieveRulerProject)')">
-    <PackageReference Include="Transiever.SieveRuler" Version="1.1.5" />
+    <PackageReference Include="Transiever.SieveRuler" Version="1.2.0" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Transiever.ThunderbirdResiever.UnitTest" />
