@@ -37,4 +37,38 @@ public sealed class CommandLineOptionsTests
         Assert.Throws<ArgumentException>(
             () => CommandLineOptions.Parse(["run", "--candidate", "candidate.sieve"]));
     }
+
+    [Fact]
+    public void Run_rejects_password_option_without_displaying_its_value()
+    {
+        const string password = "secret";
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(
+            () => CommandLineOptions.Parse(["run", "--sieve-password", password]));
+
+        Assert.Equal("Passwords cannot be supplied through --sieve-password.", exception.Message);
+        Assert.DoesNotContain(password, exception.Message);
+    }
+
+    [Theory]
+    [InlineData("--sieve-password=secret")]
+    [InlineData("--sieve-password-stdin=secret")]
+    public void Run_redacts_password_option_values(string option)
+    {
+        ArgumentException exception = Assert.Throws<ArgumentException>(
+            () => CommandLineOptions.Parse(["run", option]));
+
+        Assert.Equal("Secret input cannot be supplied through an option value.", exception.Message);
+        Assert.DoesNotContain("secret", exception.Message);
+    }
+
+    [Theory]
+    [InlineData("--sieve-password=secret")]
+    [InlineData("--sieve-password-stdin", "secret")]
+    [InlineData("--sieve-password-stdin", "-secret")]
+    public void Run_redacts_password_values_at_every_position(params string[] values)
+    {
+        string[] args = values.Length == 1 ? values : ["run", ..values];
+        Assert.DoesNotContain("secret", Assert.Throws<ArgumentException>(() => CommandLineOptions.Parse(args)).Message);
+    }
 }

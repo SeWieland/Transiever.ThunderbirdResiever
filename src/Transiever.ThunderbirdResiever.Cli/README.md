@@ -16,7 +16,9 @@ Use `--allow-partial` only after reviewing diagnostics when an enabled filter wa
 Unattended partial runs require it.
 
 ManageSieve configuration uses `TRANSIEVER_SIEVE_HOST`, `TRANSIEVER_SIEVE_PORT`, `TRANSIEVER_SIEVE_USERNAME`, `TRANSIEVER_SIEVE_PASSWORD`, and `TRANSIEVER_SIEVE_SECURITY_MODE`.
-The corresponding `--sieve-*` options override them for one command.
+The corresponding non-secret `--sieve-*` options override them for one command.
+Use `--sieve-password-stdin` to read one non-empty password from redirected standard input.
+Passwords cannot be supplied as command-line values.
 
 Shared `olrx` workflow options are retained: optimization flags, `--dry-run`, `--deploy`, compatible-rule adoption, history retention, optional artifact paths, and `--write-artifacts`.
 
