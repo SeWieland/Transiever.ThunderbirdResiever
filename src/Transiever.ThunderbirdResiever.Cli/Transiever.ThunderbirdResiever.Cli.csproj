@@ -14,4 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Transiever.ThunderbirdResiever\Transiever.ThunderbirdResiever.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Transiever.ThunderbirdResiever.Cli.UnitTest" />
+  </ItemGroup>
 </Project>
