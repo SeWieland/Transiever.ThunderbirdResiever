@@ -15,7 +15,7 @@ public sealed class EnvironmentSieveServerConfigurationProvider : ISieveServerCo
         string host = options.SieveHost ?? Required("HOST");
         string username = options.SieveUserName ?? Required("USERNAME");
         string password = options.SievePasswordStdin
-            ? ReadStandardInputPassword()
+            ? ReadStandardInputPassword(Console.IsInputRedirected)
             : Read("PASSWORD") ?? ReadPassword();
         int port = options.SievePort ?? (int.TryParse(Read("PORT"), out int configuredPort)
             ? configuredPort
@@ -38,10 +38,18 @@ public sealed class EnvironmentSieveServerConfigurationProvider : ISieveServerCo
     private static string? Read(string suffix) =>
         Environment.GetEnvironmentVariable($"TRANSIEVER_SIEVE_{suffix}");
 
-    private static string ReadStandardInputPassword() =>
-        Console.ReadLine() is { Length: > 0 } password
+    internal static string ReadStandardInputPassword(bool inputIsRedirected)
+    {
+        if (!inputIsRedirected)
+        {
+            throw new InvalidOperationException(
+                "--sieve-password-stdin requires redirected standard input.");
+        }
+
+        return Console.ReadLine() is { Length: > 0 } password
             ? password
             : throw new InvalidOperationException("Standard input did not contain a Sieve password.");
+    }
 
     private static string ReadPassword()
     {
