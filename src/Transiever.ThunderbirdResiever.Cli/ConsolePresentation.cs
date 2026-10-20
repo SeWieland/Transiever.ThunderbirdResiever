@@ -38,6 +38,7 @@ public static class ConsolePresentation
         Console.WriteLine("ManageSieve overrides (run/rollback):");
         Console.WriteLine("  --sieve-host <host> --sieve-port <port> --sieve-username <name>");
         Console.WriteLine("  --sieve-password-stdin --sieve-security-mode <mode>");
+        Console.WriteLine("  --account <account:<guid>> (or TRANSIEVER_ACCOUNT)");
         Console.WriteLine();
         Console.WriteLine("Running without arguments only prints this help and performs no external access.");
     }

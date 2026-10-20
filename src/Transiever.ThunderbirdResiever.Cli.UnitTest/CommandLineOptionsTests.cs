@@ -9,6 +9,17 @@ public sealed class CommandLineOptionsTests
     }
 
     [Fact]
+    public void Run_accepts_account_selector()
+    {
+        CommandLineOptions options = CommandLineOptions.Parse(
+            ["run", "--account", "account:00000000-0000-0000-0000-000000000001"]);
+
+        Assert.Equal(ThunderbirdResieverCommand.Run, options.Command);
+        Assert.Equal("account:00000000-0000-0000-0000-000000000001", options.Account);
+        Assert.False(options.ShowHelp);
+    }
+
+    [Fact]
     public void Run_accepts_source_partial_and_shared_options()
     {
         CommandLineOptions options = CommandLineOptions.Parse(

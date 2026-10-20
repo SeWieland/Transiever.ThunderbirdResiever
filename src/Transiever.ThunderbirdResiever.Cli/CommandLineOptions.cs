@@ -25,6 +25,7 @@ public sealed class CommandLineOptions
     public bool WriteArtifacts { get; private init; }
     public int HistoryLimit { get; private init; } = 5;
     public bool PruneHistory { get; private init; } = true;
+    public string? Account { get; private init; }
     public string? SieveHost { get; private init; }
     public int? SievePort { get; private init; }
     public string? SieveUserName { get; private init; }
@@ -66,6 +67,7 @@ public sealed class CommandLineOptions
         bool writeArtifacts = false;
         int historyLimit = 5;
         bool pruneHistory = true;
+        string? account = null;
         string? sieveHost = null;
         int? sievePort = null;
         string? sieveUsername = null;
@@ -173,6 +175,10 @@ public sealed class CommandLineOptions
                     sieveHost = ReadValue(args, ref index, option);
                     sieveUsed = true;
                     break;
+                case "--account":
+                    account = ReadValue(args, ref index, option);
+                    sieveUsed = true;
+                    break;
                 case "--sieve-port":
                     sievePort = ReadPort(args, ref index, option);
                     sieveUsed = true;
@@ -246,6 +252,7 @@ public sealed class CommandLineOptions
             WriteArtifacts = writeArtifacts,
             HistoryLimit = historyLimit,
             PruneHistory = pruneHistory,
+            Account = account,
             SieveHost = sieveHost,
             SievePort = sievePort,
             SieveUserName = sieveUsername,

@@ -21,6 +21,14 @@ Use `--sieve-password-stdin` to read one non-empty password from redirected stan
 The selector rejects interactive terminal input; omit it to use the non-echoed password prompt.
 Passwords cannot be supplied as command-line values.
 
+Select a saved account for `run` or `rollback` with `--account account:<guid>`;
+`TRANSIEVER_ACCOUNT` supplies the default selector, and the command-line selector wins when both are present.
+The selected profile supplies endpoint defaults and its stored password is used only when no safe explicit input or password environment variable was provided.
+Command-line and environment values override profile fields.
+Missing, unavailable, expired, or rejected stored passwords are never reused; an interactive terminal may prompt, while redirected input without `--sieve-password-stdin` requires a usable stored password or `TRANSIEVER_SIEVE_PASSWORD`.
+The current ManageSieve connector supports the `PLAIN` authentication preference only; other saved preferences fail before credential lookup.
+OAuth refresh tokens are not used as passwords.
+
 Shared `olrx` workflow options are retained: optimization flags, `--dry-run`, `--deploy`, compatible-rule adoption, history retention, optional artifact paths, and `--write-artifacts`.
 
 See [the compatibility guide](../../docs/thunderbird-export.md) before deploying the beta.
