@@ -4,8 +4,29 @@ using Transiever.Common.Accounts;
 namespace Transiever.ThunderbirdResiever.Cli.UnitTest;
 
 [Collection(ConsoleCaptureCollection.Name)]
-public sealed class ConfigurationProviderTests
+public sealed class ConfigurationProviderTests : IDisposable
 {
+    private static readonly string[] EnvironmentVariableNames =
+    [
+        "TRANSIEVER_SIEVE_HOST",
+        "TRANSIEVER_SIEVE_USERNAME",
+        "TRANSIEVER_SIEVE_PASSWORD",
+        "TRANSIEVER_SIEVE_PORT",
+        "TRANSIEVER_SIEVE_SECURITY_MODE",
+        "TRANSIEVER_ACCOUNT"
+    ];
+
+    private readonly Dictionary<string, string?> _originalEnvironment =
+        EnvironmentVariableNames.ToDictionary(name => name, name => Environment.GetEnvironmentVariable(name));
+
+    public ConfigurationProviderTests() => Clear();
+
+    public void Dispose()
+    {
+        foreach ((string name, string? value) in _originalEnvironment)
+            Environment.SetEnvironmentVariable(name, value);
+    }
+
     [Fact]
     public void StandardInputPassword_RejectsTerminalWithoutReading()
     {

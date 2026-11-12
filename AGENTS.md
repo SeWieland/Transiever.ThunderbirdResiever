@@ -18,7 +18,6 @@ src/
   Transiever.ThunderbirdResiever/
   Transiever.ThunderbirdResiever.Cli/
   Transiever.ThunderbirdResiever.UnitTest/
-  Transiever.ThunderbirdResiever.Cli.UnitTest/
 ```
 
 The adapter may reference a sibling SieveRuler project during umbrella development.
@@ -29,10 +28,10 @@ No project may depend on files outside this repository in published CI.
 
 ```bash
 dotnet build Transiever.ThunderbirdResiever.slnx
-dotnet test Transiever.ThunderbirdResiever.slnx
+dotnet test --solution Transiever.ThunderbirdResiever.slnx
 dotnet run --project src/Transiever.ThunderbirdResiever.Cli -- --help
 dotnet build Transiever.ThunderbirdResiever.slnx -p:SieveRulerProject=__missing_sieveruler__.csproj
-dotnet test Transiever.ThunderbirdResiever.slnx -p:SieveRulerProject=__missing_sieveruler__.csproj
+dotnet test --solution Transiever.ThunderbirdResiever.slnx -p:SieveRulerProject=__missing_sieveruler__.csproj
 ```
 
 Tests use synthetic profiles only.

@@ -6,7 +6,6 @@ updates:
       - /src/Transiever.ThunderbirdResiever
       - /src/Transiever.ThunderbirdResiever.Cli
       - /src/Transiever.ThunderbirdResiever.UnitTest
-      - /src/Transiever.ThunderbirdResiever.Cli.UnitTest
     schedule:
       interval: daily
       time: '08:00'

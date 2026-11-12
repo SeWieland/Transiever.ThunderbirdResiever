@@ -42,7 +42,7 @@ See the [CLI guide](src/Transiever.ThunderbirdResiever.Cli/README.md), [export a
 
 ```bash
 dotnet build Transiever.ThunderbirdResiever.slnx
-dotnet test Transiever.ThunderbirdResiever.slnx
+dotnet test --solution Transiever.ThunderbirdResiever.slnx
 dotnet run --project src/Transiever.ThunderbirdResiever.Cli -- --help
 ```
 
