@@ -28,7 +28,7 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet restore Transiever.ThunderbirdResiever.slnx
       - run: dotnet build Transiever.ThunderbirdResiever.slnx --configuration Release --no-restore --warnaserror
-      - run: dotnet test Transiever.ThunderbirdResiever.slnx --configuration Release --no-build
+      - run: dotnet test --solution Transiever.ThunderbirdResiever.slnx --configuration Release --no-build
 
   native-aot:
     name: Native AOT smoke (${{ matrix.rid }})

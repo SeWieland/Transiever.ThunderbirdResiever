@@ -44,7 +44,7 @@ jobs:
       - run: npm ci
       - run: dotnet restore Transiever.ThunderbirdResiever.slnx
       - run: dotnet build Transiever.ThunderbirdResiever.slnx --configuration Release --no-restore --warnaserror
-      - run: dotnet test Transiever.ThunderbirdResiever.slnx --configuration Release --no-build
+      - run: dotnet test --solution Transiever.ThunderbirdResiever.slnx --configuration Release --no-build
       - name: Create draft release
         id: semantic-release
         env:

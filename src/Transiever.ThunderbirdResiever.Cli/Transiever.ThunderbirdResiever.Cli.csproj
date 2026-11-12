@@ -16,6 +16,6 @@
     <PackageReference Include="Transiever.Common.Accounts" Version="1.1.0" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="Transiever.ThunderbirdResiever.Cli.UnitTest" />
+    <InternalsVisibleTo Include="Transiever.ThunderbirdResiever.UnitTest" />
   </ItemGroup>
 </Project>
