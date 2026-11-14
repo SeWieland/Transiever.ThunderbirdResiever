@@ -1,5 +1,5 @@
-using System.Text;
 using Transiever.Common.Accounts;
+using Transiever.Common.Cli;
 using Transiever.SieveRuler.Services;
 
 namespace Transiever.ThunderbirdResiever.Cli;
@@ -130,9 +130,7 @@ public sealed class EnvironmentSieveServerConfigurationProvider : ISieveServerCo
         if (!inputIsRedirected)
             throw new InvalidOperationException("--sieve-password-stdin requires redirected standard input.");
 
-        return Console.ReadLine() is { Length: > 0 } password
-            ? password
-            : throw new InvalidOperationException("Standard input did not contain a Sieve password.");
+        return SecretInput.ReadNonEmptyLine(Console.ReadLine, "Standard input did not contain a Sieve password.");
     }
 
     private static string ReadPassword(bool inputIsRedirected)
@@ -141,18 +139,8 @@ public sealed class EnvironmentSieveServerConfigurationProvider : ISieveServerCo
             throw new InvalidOperationException("TRANSIEVER_SIEVE_PASSWORD is required when input is redirected and no usable stored password is available.");
 
         Console.Write("ManageSieve password: ");
-        var password = new StringBuilder();
-        while (true)
-        {
-            ConsoleKeyInfo key = Console.ReadKey(true);
-            if (key.Key == ConsoleKey.Enter)
-                break;
-            if (key.Key == ConsoleKey.Backspace && password.Length > 0)
-                password.Length--;
-            else if (!char.IsControl(key.KeyChar))
-                password.Append(key.KeyChar);
-        }
+        string password = SecretInput.ReadHidden();
         Console.WriteLine();
-        return password.ToString();
+        return password;
     }
 }
