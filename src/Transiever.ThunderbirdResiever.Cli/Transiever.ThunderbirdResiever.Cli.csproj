@@ -13,7 +13,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Transiever.ThunderbirdResiever\Transiever.ThunderbirdResiever.csproj" />
-    <PackageReference Include="Transiever.Common.Accounts" Version="1.1.0" />
+    <PackageReference Include="Transiever.Common.Accounts" Version="1.2.0" />
     <PackageReference Include="Transiever.Common.Cli" Version="1.2.0" />
   </ItemGroup>
   <ItemGroup>
